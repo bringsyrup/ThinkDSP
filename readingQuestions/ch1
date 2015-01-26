@@ -1,0 +1,15 @@
+1.  waveform: a representation of all frequencies and their amplitudes in a sound
+    pitch: the percieved note of a waveform, although a waveform does not necessarily produce a pitch
+    timbre: the quality of a sound based on which frequencies/amplitudes are present in the waveform
+
+2.  DFT: applied to wave, outputs freq. vs. amplitude. Takes you from time domain to frequency domain
+    * thinkdsp.make_spectrum --> gets frequency domain from time domain
+    * thinkdsp.make_wave --> gets time domain from frequency domain
+
+3.  fundamental is lowest frequency present in waveform, dominant simply has highest amplitude
+
+4.  Signal: represents a time-varied signal, uses numpy to generate discrete wave 
+    Wave: represents a discrete-time waveform, or rather has a set sample rate wheras Signal tries to be more "lossless" I think
+
+5.  Signal to Wave: Signal.make_wave()
+    Wave to Spectrum: Wave.make_spectrum()
