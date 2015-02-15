@@ -19,6 +19,8 @@ import struct
 import subprocess
 import thinkplot
 import warnings
+import dft
+import dct
 
 from fractions import gcd
 from wave import open as open_wave
@@ -117,10 +119,6 @@ def read_wave(filename='sound.wav'):
         ys = (xs[2::3] * 256 + xs[1::3]) * 256 + xs[0::3]
     else:
         ys = numpy.fromstring(z_str, dtype=dtype_map[sampwidth])
-
-    # if it's in stereo, just pull out the first channel
-    if nchannels == 2:
-        ys = ys[::2]
 
     wave = Wave(ys, framerate)
     return wave
@@ -317,7 +315,7 @@ class Spectrum(_SpectrumParent):
         filtr = PI2 * i * self.fs
         self.hs *= filtr
 
-    def angles(self):
+    def angles(self, i):
         """Computes phase angles in radians.
 
         returns: list of phase angles
@@ -416,7 +414,7 @@ class Dct(_SpectrumParent):
 class Spectrogram(object):
     """Represents the spectrum of a signal."""
 
-    def __init__(self, spec_map, seg_length=512, window_func=None):
+    def __init__(self, spec_map, seg_length, window_func=None):
         """Initialize the spectrogram.
 
         spec_map: map from float time to Spectrum
@@ -589,8 +587,7 @@ class Wave(object):
         if self.framerate != other.framerate:
             raise ValueError('Wave convolution: framerates do not agree')
 
-        ys = numpy.convolve(self.ys, other.ys, mode='full')
-        ys = ys[:len(self.ys)]
+        ys = numpy.convolve(self.ys, other.ys, mode='same')
         return Wave(ys, self.framerate)
 
     def quantize(self, bound, dtype):
@@ -643,11 +640,6 @@ class Wave(object):
         if shift > 0:
             self.ys = shift_right(self.ys, shift)
         
-    def truncate(self, n):
-        """Trims this wave to the given length.
-        """
-        self.ys = truncate(self.ys, n)
-
     def normalize(self, amp=1.0):
         """Normalizes the signal to the given amplitude.
 
@@ -668,12 +660,12 @@ class Wave(object):
 
         returns: Wave
         """
-        i = round(start * self.framerate)
+        i = start * self.framerate
 
         if duration is None:
             j = None
         else:
-            j = i + round(duration * self.framerate)
+            j = i + duration * self.framerate
 
         ys = self.ys[i:j]
         return Wave(ys, self.framerate)
@@ -827,7 +819,7 @@ def normalize(ys, amp=1.0):
 
 
 def shift_right(ys, shift):
-    """Shifts a wave array to the right and zero pads.
+    """Shift a wave array to the right and zero pads.
 
     ys: wave array
     shift: integer shift
@@ -840,7 +832,7 @@ def shift_right(ys, shift):
 
 
 def shift_left(ys, shift):
-    """Shifts a wave array to the left.
+    """Shift a wave array to the left.
 
     ys: wave array
     shift: integer shift
@@ -848,17 +840,6 @@ def shift_left(ys, shift):
     returns: wave array
     """
     return ys[shift:]
-
-
-def truncate(ys, n):
-    """Trims a wave array to the given length.
-
-    ys: wave array
-    n: integer length
-
-    returns: wave array
-    """
-    return ys[:n]
 
 
 def quantize(ys, bound, dtype):
@@ -1202,6 +1183,8 @@ class Chirp(Signal):
         ts: float array of times
         freqs: float array of frequencies during each interval
         """
+        #n = len(freqs)
+        #print freqs[::n/2]
         dts = numpy.diff(ts)
         dps = PI2 * freqs * dts
         phases = numpy.cumsum(dps)
@@ -1224,6 +1207,20 @@ class ExpoChirp(Chirp):
         freqs = numpy.logspace(start, end, len(ts)-1)
         return self._evaluate(ts, freqs)
 
+class TriChirp(Chirp):
+
+    def _evaluate(self, ts, freqs):
+        dts = numpy.diff(ts)
+        dps = PI2 * freqs * dts
+        phases = numpy.cumsum(dps)
+        phases = numpy.insert(phases, 0, 0)
+        #ys = self.amp * numpy.cos(phases)
+        #cycles = self.freq * ts / PI2
+        cycles = phases / PI2
+        frac, _ = numpy.modf(cycles)
+        ys = numpy.abs(frac - 0.5)
+        ys = normalize(unbias(ys), self.amp)
+        return ys
 
 class SilentSignal(Signal):
     """Represents silence."""
@@ -1492,6 +1489,14 @@ def main():
     wfile.write()
     wfile.close()
 
+""""""""""""""""""""""""
+""" Ruby's additions """
+""""""""""""""""""""""""
+
+def autocorr(wave):
+    lags = range(len(wave.ys)//2)
+    corrs = [numpy.corrcoef(wave.ys[lag:], wave.ys[:len(wave.ys)-lag])[0, 1] for lag in lags]
+    return lags, corrs
 
 if __name__ == '__main__':
     main()
