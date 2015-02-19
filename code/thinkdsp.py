@@ -1493,10 +1493,33 @@ def main():
 """ Ruby's additions """
 """"""""""""""""""""""""
 
-def autocorr(wave):
-    lags = range(len(wave.ys)//2)
-    corrs = [numpy.corrcoef(wave.ys[lag:], wave.ys[:len(wave.ys)-lag])[0, 1] for lag in lags]
-    return lags, corrs
+class AutoCorr(object):
 
-if __name__ == '__main__':
-    main()
+    def __init__(self, wave):
+        self.wave = wave
+        self.sig = self.wave.ys
+
+    def autocorr(self):
+        lags = range(len(self.sig)//2)
+        corrs = [numpy.corrcoef(self.sig[lag:], self.sig[:len(self.sig)-lag])[0, 1] for lag in lags]
+        return lags, corrs
+
+    def fft_convolve(self, sig, window):
+        fft_sig = numpy.fft.fft(sig)
+        fft_window = numpy.fft.fft(window)
+        return numpy.fft.ifft(fft_sig * fft_window)
+
+    def zero_pad(self, array, n):
+        res = numpy.zeros(n)
+        res[:len(array)] = array
+        return res
+   
+    def fft_autocorr(self):
+        N = len(self.sig)
+        window = self.sig[::-1]
+        sig = self.zero_pad(self.sig, 2*N)
+        window = self.zero_pad(window, 2*N)
+        corrs = self.fft_convolve(sig, window)
+        corrs = corrs[N//2: 3*N//2]
+        return corrs
+
